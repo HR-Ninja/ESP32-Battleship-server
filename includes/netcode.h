@@ -1,6 +1,7 @@
 #ifndef NETCODE_H
 #define NETCODE_H
 
+#define WIN32
 
 #ifdef WIN32
     #define WIN32_LEAN_AND_MEAN
@@ -35,7 +36,7 @@
 
 /* -- Config -- */
 #define DEFAULT_PORT "8080"
-#define MAX_PACKET_SIZE 512
+#define MAX_PAYLOAD_SIZE 512
 #define MAX_SEND_QUEUE 32
 #define MAX_RECV_QUEUE 32
 
@@ -54,12 +55,16 @@
 #define NET_SEND_WOULDBLOCK  1
 
 typedef struct {
+    uint8_t buffer[MAX_PAYLOAD_SIZE];
+} Payload;
+
+typedef struct {
     uint16_t type;
     uint16_t length;
 } PacketHeader;
 
 typedef struct {
-    uint8_t buffer[MAX_PACKET_SIZE];
+    Payload payload;
     uint16_t type;
     uint16_t length;
 } Packet;
@@ -86,13 +91,18 @@ typedef struct {
 } RecvState;
 
 typedef struct {
+    Packet packet;
     net_socket  sock;
-    SendQueue sq;
-    RecvQueue rq;
-    RecvState rs;
 } Client;
 
+/* -- Core -- */
 
-int set_nonblocking(net_socket sock);
+static int init_socket();
+static int set_nonblocking(net_socket sock);
+
+// Blocking
+static int send_packet(const Client* c, const uint16_t type, const uint16_t length, const void* data);
+static int recv_packet(Client* c);
+
 
 #endif
