@@ -1,6 +1,77 @@
 #include "includes/netcode.h"
 
-int send_packet(const Client* c, const uint16_t type, const uint16_t length, const void* data) {
+inline int net_init(const char* host, const char* port, Client* c) {
+#ifdef WIN32
+    WSADATA wsa_data;
+
+    int result = WSAStartup(MAKEWORD(2,2), &wsa_data);
+    if (result != 0) {
+        return NET_FAIL;
+    }
+
+    address_info* ai = NULL;
+    if (!host) { host = "localhost"; }
+    if (!port) { port = DEFAULT_PORT; }
+
+    address_info hints = {0};
+    
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = IPPROTO_TCP;
+
+    result = getaddrinfo(host, port, &hints, ai);
+    if (result != 0) {
+        return NET_FAIL;
+    }
+
+    net_socket listen_sock = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+    if (listen_sock == NET_INVALID_SOCKET) {
+        freeaddrinfo(ai);
+        return NET_FAIL;
+    }
+
+
+    result = bind(listen_sock, ai->ai_addr, (int)ai->ai_addrlen);
+    if (result == NET_INVALID_SOCKET) {
+        freeaddrinfo(ai);
+        closesocket(listen_sock);
+        return NET_FAIL;
+    }
+
+    freeaddrinfo(ai);
+
+    result = listen(listen_sock, SOMAXCONN);
+    if (result == NET_INVALID_SOCKET) {
+        closesocket(listen_sock);
+        return NET_FAIL;
+    }
+
+    c->sock = accept(listen_sock, NULL, NULL);
+    if (c->sock == NET_INVALID_SOCKET) {
+        closesocket(c->sock);
+        return NET_FAIL;
+    }
+
+    closesocket(listen_sock);
+
+#else
+
+#endif
+
+    return NET_SUCCESS;
+}
+
+
+inline int net_close(Client* c) {
+#ifdef WIN32
+    return closesocket(c->sock);
+#else
+
+#endif
+    return NET_SUCCESS;
+}
+
+int net_send(const Client* c, const uint16_t type, const uint16_t length, const void* data) {
     if (c->sock == NET_INVALID_SOCKET) return NET_SEND_ERROR;
 
 #ifdef WIN32
@@ -80,11 +151,11 @@ int send_packet(const Client* c, const uint16_t type, const uint16_t length, con
 
     return NET_SEND_COMPLETE;
 #else
-    
+    // Add later
 #endif
 }
 
-int recv_packet(Client* c) {
+int net_recv(Client* c, TimeVal* tv) {
     if (c->sock == NET_INVALID_SOCKET) return NET_RECV_ERROR;
 
 #ifdef WIN32
@@ -110,7 +181,14 @@ int recv_packet(Client* c) {
             FD_ZERO(&read);
             FD_SET(c->sock, &read);
 
-            int status = select(0, &read, NULL, NULL, NULL);
+            int status = 0;
+            if (tv == NULL) {
+                status = select(0, &read, NULL, NULL, NULL);
+            }
+            else {
+                status = select(0, &read, NULL, NULL, tv);
+            }
+
             if (status < 0) {
                 return NET_RECV_ERROR;
             }
@@ -154,7 +232,14 @@ int recv_packet(Client* c) {
             FD_ZERO(&read);
             FD_SET(c->sock, &read);
 
-            int status = select(0, &read, NULL, NULL, NULL);
+            int status = 0;
+            if (tv == NULL) {
+                status = select(0, &read, NULL, NULL, NULL);
+            }
+            else {
+                status = select(0, &read, NULL, NULL, tv);
+            }
+
             if (status < 0) {
                 return NET_RECV_ERROR;
             }
@@ -170,17 +255,13 @@ int recv_packet(Client* c) {
     }
     
 #else
-    
+    // Add later
 #endif
 
     return NET_RECV_COMPLETE;
 }
 
-
-
-
-
-int set_nonblocking(net_socket sock) {
+int net_set_nonblocking(net_socket sock) {
 #ifdef WIN32
     u_long mode = 1;
     return ioctlsocket(sock, FIONBIO, &mode);

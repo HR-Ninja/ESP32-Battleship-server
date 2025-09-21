@@ -13,9 +13,9 @@
     #include <winsock2.h>
     #include <ws2tcpip.h>
 
-    #define net_close(s) closesocket(s)
     #define NET_INVALID_SOCKET INVALID_SOCKET
 
+    typedef struct addrinfo address_info;
     typedef SOCKET net_socket;
 #else
     #include "lwip/sockets.h"   // ESP32 (lwIP)
@@ -23,7 +23,6 @@
     #include <arpa/inet.h>
     #include <unistd.h>
 
-    #define net_close(s) close(s)
     #define NET_INVALID_SOCKET -1
 
     typedef int net_socket;
@@ -53,6 +52,8 @@
 #define NET_SEND_DISCONNECT -1
 #define NET_SEND_COMPLETE    0
 #define NET_SEND_WOULDBLOCK  1
+
+typedef struct timeval TimeVal;
 
 typedef struct {
     uint8_t buffer[MAX_PAYLOAD_SIZE];
@@ -96,13 +97,12 @@ typedef struct {
 } Client;
 
 /* -- Core -- */
-
-static int init_socket();
-static int set_nonblocking(net_socket sock);
+extern inline int net_init(const char* host, const char* port, Client* c);
+extern inline int net_close(Client* c);
+extern int net_set_nonblocking(net_socket sock);
 
 // Blocking
-static int send_packet(const Client* c, const uint16_t type, const uint16_t length, const void* data);
-static int recv_packet(Client* c);
-
+extern int net_send(const Client* c, const uint16_t type, const uint16_t length, const void* data);
+extern int net_recv(Client* c, TimeVal* tv);
 
 #endif
