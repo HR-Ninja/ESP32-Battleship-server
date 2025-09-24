@@ -155,7 +155,7 @@ int net_send(const Client* c, const uint16_t type, const uint16_t length, const 
 #endif
 }
 
-int net_recv(Client* c, TimeVal* tv) {
+int net_recv(Client* c, const TimeVal* tv) {
     if (c->sock == NET_INVALID_SOCKET) return NET_RECV_ERROR;
 
 #ifdef WIN32
@@ -203,15 +203,15 @@ int net_recv(Client* c, TimeVal* tv) {
         return NET_RECV_ERROR;
     }
 
-    c->packet.type = ntohs(net_header.type);
-    c->packet.length = ntohs(net_header.length);
+    c->packet.header.type = ntohs(net_header.type);
+    c->packet.header.length = ntohs(net_header.length);
 
-    if (c->packet.length > MAX_PAYLOAD_SIZE) {
-        printf("Invalid payload size: %u", c->packet.length);
+    if (c->packet.header.length > MAX_PAYLOAD_SIZE) {
+        printf("Invalid payload size: %u", c->packet.header.length);
         return NET_RECV_ERROR;
     }
 
-    int len = c->packet.length;
+    int len = c->packet.header.length;
     received = 0;
     while (received < len) {
         int n = recv(c->sock, c->packet.payload.buffer + received, len - received, 0);
@@ -269,4 +269,49 @@ int net_set_nonblocking(net_socket sock) {
     int flags = fcntl(sock, F_GETFL, 0);
     return fcntl(sock, F_SETFL, flags | O_NONBLOCK);
 #endif
+}
+
+inline void net_init_queue(Queue* q) {
+    q->head = 0;
+    q->tail = 0;
+    q->count = 0;
+}
+
+inline int net_is_queue_empty(const Queue* q) {
+    return q->count == 0;
+}
+
+inline int net_is_queue_full(const Queue* q) {
+     return q->count == MAX_QUEUE_SIZE;
+}
+
+int net_enqueue_packet(Queue* q, const Packet* data) {
+    if (net_is_queue_full(q)) {
+        return NET_FAIL;
+    }
+
+    q->items[q->tail] = *data;
+    q->tail = (q->tail + 1) % MAX_QUEUE_SIZE;
+    q->count++;
+    return NET_SUCCESS;
+}
+
+Packet* net_dequeue_packet(Queue* q) {
+
+    if (net_is_queue_empty(q)) {
+        return NULL;
+    }
+
+    Packet* p = &q->items[q->head];
+    q->head = (q->head + 1) % MAX_QUEUE_SIZE;
+    q->count--;
+    return p;
+}
+
+const Packet* net_queue_peek(const Queue* q) {
+    if (net_is_queue_empty(q)) {
+        return NULL;
+    }
+
+    return  &q->items[q->head];
 }

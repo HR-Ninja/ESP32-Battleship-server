@@ -24,11 +24,11 @@ unsigned __stdcall recv_thread(void* arg) {
 
         if (rc == NET_RECV_COMPLETE) {
             printf("[RECV] type=%u length=%u\n",
-                   c->packet.type, c->packet.length);
+                   c->packet.header.type, c->packet.header.length);
 
-            if (c->packet.length > 0) {
+            if (c->packet.header.length > 0) {
                 printf("[RECV] payload: '%.*s'\n",
-                       c->packet.length,
+                       c->packet.header.length,
                        (char*)c->packet.payload.buffer);
             }
         }

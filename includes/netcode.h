@@ -36,8 +36,7 @@
 /* -- Config -- */
 #define DEFAULT_PORT "8080"
 #define MAX_PAYLOAD_SIZE 512
-#define MAX_SEND_QUEUE 32
-#define MAX_RECV_QUEUE 32
+#define MAX_QUEUE_SIZE 64
 
 /* -- Codes -- */
 #define NET_SUCCESS 1
@@ -66,23 +65,15 @@ typedef struct {
 
 typedef struct {
     Payload payload;
-    uint16_t type;
-    uint16_t length;
+    PacketHeader header;
 } Packet;
 
 typedef struct {
-    Packet items[MAX_SEND_QUEUE];
+    Packet items[MAX_QUEUE_SIZE];
     uint16_t head;
     uint16_t tail;
     uint16_t count;
-} SendQueue;
-
-typedef struct {
-    Packet items[MAX_RECV_QUEUE];
-    uint16_t head;
-    uint16_t tail;
-    uint16_t count;
-} RecvQueue;
+} Queue;
 
 typedef struct {
     uint16_t header_bytes_received;
@@ -96,6 +87,9 @@ typedef struct {
     net_socket  sock;
 } Client;
 
+typedef Queue SendQueue;
+typedef Queue RecvQueue;
+
 /* -- Core -- */
 extern inline int net_init(const char* host, const char* port, Client* c);
 extern inline int net_close(Client* c);
@@ -103,6 +97,20 @@ extern int net_set_nonblocking(net_socket sock);
 
 // Blocking
 extern int net_send(const Client* c, const uint16_t type, const uint16_t length, const void* data);
-extern int net_recv(Client* c, TimeVal* tv);
+extern int net_recv(Client* c, const TimeVal* tv);
+
+// Queue helpers
+extern inline void net_init_queue(Queue* q);
+extern inline int net_is_queue_empty(const Queue* q);
+extern inline int net_is_queue_full(const Queue* q);
+extern const Packet* net_queue_peek(const Queue* q);
+extern int net_enqueue_packet(Queue* q, const Packet* data);
+extern Packet* net_dequeue_packet(Queue* q);
+
+// Recv
+
+
+// Send
+extern void net_flush_queue(Queue* q);
 
 #endif
